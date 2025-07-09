@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { KeyboardEvent, useCallback, useEffect, useState } from 'react'
 
 import { useNavigate } from 'react-router-dom'
 
@@ -15,56 +15,131 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { encryptPassword, logoImg } from '@/utils'
 
-function Login() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const { login, isLoading, getPublicKey, publicKey } = useAuthStore()
-  // 使用 useState 管理密码输入框的类型
-  const [showPassword, setShowPassword] = useState(false)
-
-  // 切换密码显示状态
-  const togglePasswordVisibility = () => {
-    setShowPassword((prevState) => !prevState)
+// 定义表单验证状态
+interface FormState {
+  username: string
+  password: string
+  showPassword: boolean
+  errors: {
+    username?: string
+    password?: string
   }
-  const navigate = useNavigate() // Hook for navigation
+}
+
+function Login() {
+  const navigate = useNavigate()
+  const { login, isLoading, getPublicKey, publicKey } = useAuthStore()
+
+  const [formState, setFormState] = useState<FormState>({
+    username: '',
+    password: '',
+    showPassword: false,
+    errors: {},
+  })
+
+  // 获取公钥
   useEffect(() => {
     getPublicKey()
-  }, [])
-  const handleLogin = () => {
-    if (username.trim().length == 0 || password.trim().length == 0) {
+  }, [getPublicKey])
+
+  // 验证表单
+  const validateForm = useCallback((): boolean => {
+    const errors: FormState['errors'] = {}
+
+    if (!formState.username.trim()) {
+      errors.username = '请输入账号'
+    }
+
+    if (!formState.password.trim()) {
+      errors.password = '请输入密码'
+    } else if (formState.password.length < 6) {
+      errors.password = '密码至少需要6位'
+    }
+
+    setFormState((prev) => ({ ...prev, errors }))
+    return Object.keys(errors).length === 0
+  }, [formState.username, formState.password])
+
+  // 处理登录
+  const handleLogin = useCallback(async () => {
+    if (!validateForm()) {
       return
     }
-    const encryptedPassword = encodeURIComponent(
-      encryptPassword(password, publicKey)
-    )
-    login(username, encryptedPassword).then((res: any) => {
-      if (res.code == 401) {
-        toast.error('登录失败！', {
-          description: res.data,
-        })
-      } else if (res.code == 200) {
-        navigate('/')
-        localStorage.setItem('token', res.data.token)
-        localStorage.setItem('refreshToken', res.data.refreshToken)
-      }
-    })
-  }
-  const handleSubmit = async () => {
-    handleLogin()
-  }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleLogin()
+    try {
+      const encryptedPassword = encryptPassword(formState.password, publicKey)
+      if (!encryptedPassword) {
+        toast.error('密码加密失败，请重试')
+        return
+      }
+
+      const encodedPassword = encodeURIComponent(encryptedPassword)
+      const response = await login(formState.username, encodedPassword)
+
+      if (response.code === 401) {
+        toast.error('登录失败！', {
+          description: '用户名或密码错误',
+        })
+      } else if (response.code === 200) {
+        toast.success('登录成功！')
+        localStorage.setItem('token', response.data.token)
+        localStorage.setItem('refreshToken', response.data.refreshToken)
+        navigate('/')
+      } else {
+        toast.error('登录失败！', {
+          description: '未知错误，请重试',
+        })
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      toast.error('登录失败！', {
+        description: '网络错误，请检查网络连接',
+      })
     }
-  }
+  }, [
+    formState.username,
+    formState.password,
+    publicKey,
+    login,
+    navigate,
+    validateForm,
+  ])
+
+  // 切换密码显示状态
+  const togglePasswordVisibility = useCallback(() => {
+    setFormState((prev) => ({ ...prev, showPassword: !prev.showPassword }))
+  }, [])
+
+  // 处理键盘事件
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleLogin()
+      }
+    },
+    [handleLogin]
+  )
+
+  // 更新表单状态
+  const updateFormField = useCallback(
+    (field: keyof Pick<FormState, 'username' | 'password'>, value: string) => {
+      setFormState((prev) => ({
+        ...prev,
+        [field]: value,
+        errors: { ...prev.errors, [field]: undefined }, // 清除当前字段的错误
+      }))
+    },
+    []
+  )
+
   const currentYear = new Date().getFullYear()
 
   return (
-    <div>
-      <div className="grid grid-cols-2 gap-4 ml-8">
-        <div className="flex justify-center items-center h-[calc(100vh_-_theme(spacing.8))]">
+    <div className="min-h-screen bg-background">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:ml-8">
+        {/* 左侧介绍区域 */}
+        <div className="hidden lg:flex justify-center items-center h-[calc(100vh_-_theme(spacing.8))]">
           <DotPattern
             width={18}
             height={18}
@@ -75,15 +150,17 @@ function Login() {
               '[mask-image:radial-gradient(900px_circle_at_left,white,transparent)]'
             )}
           />
-          <div>
+          <div className="relative z-10 max-w-lg">
             <BoxReveal boxColor={'#0EA5E9'} duration={0.5}>
-              <p className="text-[3.5rem] font-semibold">
-                {/* <span className="text-[#5046e6]">一款清爽、美观、附带AI的WEB开发模板</span> */}
-              </p>
+              <h1 className="text-4xl lg:text-5xl font-bold mb-4">
+                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  X.Ryder
+                </span>
+              </h1>
             </BoxReveal>
 
             <BoxReveal boxColor={'#0EA5E9'} duration={0.5}>
-              <h2 className="mt-[.5rem] text-xl font-semibold">
+              <h2 className="text-xl font-semibold text-muted-foreground mb-6">
                 为{' '}
                 <span className="text-[#0EA5E9]">
                   全栈开发工程师、前端及后端工程师
@@ -93,135 +170,189 @@ function Login() {
             </BoxReveal>
 
             <BoxReveal boxColor={'#0EA5E9'} duration={0.5}>
-              <div className="mt-[1.5rem]">
+              <div className="space-y-4 text-sm text-muted-foreground">
                 <p>
-                  -&gt; 前端基于
-                  <span className="font-semibold text-[#0EA5E9]"> React</span>，
-                  <span className="font-semibold text-[#0EA5E9]"> Vite</span>，
+                  • 前端基于
+                  <span className="font-semibold text-[#0EA5E9]"> React</span>、
+                  <span className="font-semibold text-[#0EA5E9]"> Vite</span>、
                   <span className="font-semibold text-[#0EA5E9]">
                     {' '}
-                    Typescript
+                    TypeScript
                   </span>
-                  ，
+                  、
                   <span className="font-semibold text-[#0EA5E9]">
                     {' '}
-                    Tailwind CSS
+                    Tailwind CSS{' '}
                   </span>
-                  ，<span className="font-semibold text-[#0EA5E9]"> Axios</span>
-                  ，
+                  等现代技术栈构建
+                </p>
+                <p>
+                  • 后端基于
+                  <span className="font-semibold text-[#0EA5E9]"> Java 21</span>
+                  、
                   <span className="font-semibold text-[#0EA5E9]">
                     {' '}
-                    Shacdn/ui
-                  </span>
-                  和
-                  <span className="font-semibold text-[#0EA5E9]"> Zustand</span>
-                  等构建。
-                  <br />
-                  -&gt; 后端基于
-                  <span className="font-semibold text-[#0EA5E9]">Java 21</span>
-                  ，
-                  <span className="font-semibold text-[#0EA5E9]">
                     Spring Boot
                   </span>
-                  ，<span className="font-semibold text-[#0EA5E9]">MySQL</span>
-                  ，
+                  、
+                  <span className="font-semibold text-[#0EA5E9]"> MySQL </span>
+                  开发的企业级后台程序
+                </p>
+                <p>
+                  • 可作为
                   <span className="font-semibold text-[#0EA5E9]">
-                    SpringData JPA
+                    {' '}
+                    业务系统{' '}
                   </span>
-                  开发的后台程序。
-                  <br />
-                  -&gt; 可以作为
-                  <span className="font-semibold text-[#0EA5E9]">业务系统</span>
                   和
                   <span className="font-semibold text-[#0EA5E9]">
-                    后台管理系统
+                    {' '}
+                    后台管理系统{' '}
                   </span>
-                  的前后端开发框架。
-                  <br />
-                  -&gt; 集成
-                  <span className="font-semibold text-[#0EA5E9]">AI</span>。
+                  的开发框架
+                </p>
+                <p>
+                  • 集成
+                  <span className="font-semibold text-[#0EA5E9]"> AI </span>
+                  能力，提供智能化解决方案
                 </p>
               </div>
             </BoxReveal>
           </div>
         </div>
-        <div className="flex justify-center items-center h-[calc(100vh_-_theme(spacing.8))]">
-          <Card className="mx-auto max-w-sm z-10 shadow-2xl">
-            <CardHeader className="text-center w-96 items-center mt-6">
-              <img
-                src={logoImg}
-                alt={'logo'}
-                className="w-16 mb-2 shadow-2xl"
-              />
-              <CardTitle
-                className={
-                  'text-3xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent'
-                }
-              >
-                X.Ryder
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">账号</Label>
-                  <Input
-                    type="text"
-                    placeholder="输入账号..."
-                    value={username}
-                    required
-                    onChange={(e) => setUsername(e.target.value)}
+
+        {/* 右侧登录区域 */}
+        <div className="flex justify-center items-center min-h-screen lg:h-[calc(100vh_-_theme(spacing.8))] p-4">
+          <div className="relative w-full max-w-sm">
+            <Card className="w-full shadow-2xl border-0 bg-card/50 backdrop-blur-sm">
+              <CardHeader className="text-center space-y-4 pt-8">
+                <div className="flex justify-center">
+                  <img
+                    src={logoImg}
+                    alt="X.Ryder Logo"
+                    className="w-16 h-16 rounded-2xl shadow-lg"
                   />
                 </div>
-                <div className="grid gap-2 relative flex">
-                  <Label htmlFor="password">密码</Label>
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    onKeyDown={handleKeyDown}
-                    placeholder="输入密码..."
-                    required
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={togglePasswordVisibility}
-                    className="absolute right-2 top-10 transform -translate-y-1/2 text-gray-500"
-                  >
-                    {showPassword ? (
-                      <Eye className="h-5 w-5" /> // 隐藏状态时显示 EyeSlashIcon
-                    ) : (
-                      <EyeOff className="h-5 w-5" /> // 可见状态时显示 EyeIcon
+                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
+                  X.Ryder
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  欢迎回来，请登录您的账户
+                </p>
+              </CardHeader>
+
+              <CardContent className="space-y-6 pb-8">
+                <div className="space-y-4">
+                  {/* 账号输入 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-sm font-medium">
+                      账号
+                    </Label>
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="请输入您的账号"
+                      value={formState.username}
+                      onChange={(e) =>
+                        updateFormField('username', e.target.value)
+                      }
+                      className={cn(
+                        'h-11 transition-colors',
+                        formState.errors.username &&
+                          'border-destructive focus-visible:ring-destructive'
+                      )}
+                      disabled={isLoading}
+                    />
+                    {formState.errors.username && (
+                      <p className="text-xs text-destructive">
+                        {formState.errors.username}
+                      </p>
                     )}
-                  </button>
+                  </div>
+
+                  {/* 密码输入 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      密码
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={formState.showPassword ? 'text' : 'password'}
+                        placeholder="请输入您的密码"
+                        value={formState.password}
+                        onChange={(e) =>
+                          updateFormField('password', e.target.value)
+                        }
+                        onKeyDown={handleKeyDown}
+                        className={cn(
+                          'h-11 pr-10 transition-colors',
+                          formState.errors.password &&
+                            'border-destructive focus-visible:ring-destructive'
+                        )}
+                        disabled={isLoading}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={togglePasswordVisibility}
+                        disabled={isLoading}
+                      >
+                        {formState.showPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                    {formState.errors.password && (
+                      <p className="text-xs text-destructive">
+                        {formState.errors.password}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                >
-                  {isLoading ? '正在登录...' : '登录'}
-                </Button>
-                <Button variant="outline" className="w-full">
-                  使用第三方账号登录
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          <DotPattern
-            width={16}
-            height={16}
-            cx={12}
-            cy={12}
-            cr={1}
-            className={cn(
-              '[mask-image:radial-gradient(900px_circle_at_right,white,transparent)]'
-            )}
-          />
+
+                {/* 登录按钮 */}
+                <div className="space-y-3">
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-200"
+                    onClick={handleLogin}
+                    disabled={isLoading || !publicKey}
+                  >
+                    {isLoading ? '正在登录...' : '登录'}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="w-full h-11 transition-colors hover:bg-muted"
+                    disabled={isLoading}
+                  >
+                    使用第三方账号登录
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <DotPattern
+              width={16}
+              height={16}
+              cx={12}
+              cy={12}
+              cr={1}
+              className={cn(
+                'absolute inset-0 -z-10',
+                '[mask-image:radial-gradient(900px_circle_at_right,white,transparent)]'
+              )}
+            />
+          </div>
         </div>
       </div>
-      <footer className={'text-center text-muted-foreground text-xs'}>
+
+      <footer className="text-center text-muted-foreground text-xs py-4">
         <p>&copy; {currentYear} X.Ryder. All rights reserved.</p>
       </footer>
     </div>
