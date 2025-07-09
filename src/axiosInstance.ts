@@ -36,7 +36,9 @@ let isRefreshToken = false
 // 刷新token的Promise，用于防止重复刷新
 let refreshTokenPromise: Promise<AxiosResponse> | null = null
 // 请求白名单，无须token的接口 - 使用Set优化查找性能
-const WHITE_LIST = new Set(['/v1/token', '/login', '/v1/publicKey'])
+const WHITE_LIST = new Set(['/v1/token', '/v1/publicKey'])
+// 登录相关的白名单路径，需要精确匹配
+const LOGIN_WHITE_LIST = new Set(['/login'])
 
 // 缓存token和refreshToken，减少localStorage访问
 let cachedToken: string | null = null
@@ -121,10 +123,21 @@ api.interceptors.request.use(
     let isToken = true
     // 检查当前请求的URL是否在白名单中
     if (config.url) {
+      // 检查普通白名单（包含匹配）
       for (const url of WHITE_LIST) {
         if (config.url.includes(url)) {
           isToken = false
           break
+        }
+      }
+
+      // 检查登录白名单（精确匹配）
+      if (isToken) {
+        for (const url of LOGIN_WHITE_LIST) {
+          if (config.url === url) {
+            isToken = false
+            break
+          }
         }
       }
     }
@@ -292,7 +305,7 @@ const handleTokenExpired = async (config: InternalAxiosRequestConfig) => {
 // 处理未授权情况
 const handleUnauthorized = (data: ApiResponse) => {
   // 保存当前页面路径到URL参数中（除非已经在登录页）
-  if (!window.location.href.includes(CONFIG.LOGIN_PATH)) {
+  if (window.location.pathname !== CONFIG.LOGIN_PATH) {
     const currentPath =
       window.location.pathname + window.location.search + window.location.hash
     const loginUrl = `${CONFIG.LOGIN_PATH}?${CONFIG.REDIRECT_PARAM_KEY}=${encodeURIComponent(currentPath)}`
@@ -311,7 +324,7 @@ const refreshToken = async () => {
 
 const handleAuthorized = () => {
   // 如果已经到重新登录页面则不进行弹窗提示
-  if (window.location.href.includes(CONFIG.LOGIN_PATH)) {
+  if (window.location.pathname === CONFIG.LOGIN_PATH) {
     return
   }
   // 保存当前页面路径到URL参数中（除非已经在登录页）
@@ -379,7 +392,7 @@ export const checkTokenValidity = async (): Promise<boolean> => {
 // 登录页面自动跳转检查
 export const autoRedirectIfLoggedIn = async (): Promise<boolean> => {
   // 只在登录页执行
-  if (!window.location.href.includes(CONFIG.LOGIN_PATH)) {
+  if (window.location.pathname !== CONFIG.LOGIN_PATH) {
     return false
   }
 

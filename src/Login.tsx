@@ -119,7 +119,7 @@ function Login() {
           description: t('login.notifications.usernameOrPasswordError'),
         })
       } else if (response.code === 200) {
-        toast.success(t('login.notifications.loginSuccess'))
+        sessionStorage.setItem('loginSuccess', 'true')
         // 使用新的登录成功处理函数，自动处理重定向
         handleLoginSuccess(response.data.token, response.data.refreshToken)
       } else {
