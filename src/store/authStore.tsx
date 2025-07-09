@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 
+import { API_URLS } from '@/constants/apiUrls'
 // 引入 Axios 实例
 import { parseQuery } from '@/utils'
+import { extractErrorMessage } from '@/utils/errorHandler'
 
-import api from '../axiosInstance'
+import api, { clearApiTokens } from '../axiosInstance'
 
 // 定义登录响应数据类型
 interface LoginResponse {
@@ -43,7 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null })
     try {
       const data = (await api.post(
-        '/login?' + parseQuery({ username, password })
+        API_URLS.AUTH.LOGIN + '?' + parseQuery({ username, password })
       )) as LoginResponse
       if (data.code === 200) {
         set({
@@ -54,32 +56,28 @@ export const useAuthStore = create<AuthState>((set) => ({
           isLoading: false,
         })
       } else {
-        set({
-          isLoading: false,
-        })
+        set({ isLoading: false })
       }
       return data
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Login failed'
+      const errorMessage = extractErrorMessage(error, 'Login failed')
       set({ error: errorMessage, isLoading: false })
       throw error
     }
   },
   getPublicKey: async () => {
     try {
-      const response = (await api.get('/v1/publicKey')) as { data: string }
-      set({
-        publicKey: response.data,
-      })
+      const response = (await api.get(API_URLS.AUTH.PUBLIC_KEY)) as {
+        data: string
+      }
+      set({ publicKey: response.data })
     } catch (error: unknown) {
       console.error('获取公钥失败:', error)
     }
   },
   logout: () => {
     set({ token: '', refreshToken: '', name: '' })
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
+    clearApiTokens()
     window.location.href = '/login'
   },
 }))

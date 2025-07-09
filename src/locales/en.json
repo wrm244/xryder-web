@@ -19,5 +19,45 @@
   "members": "Members",
   "bill": "Bill",
   "docs": "docs",
-  "system": "System"
+  "system": "System",
+  "personal": {
+    "title": "Personal Settings",
+    "description": "Configure system display mode, language and other preferences",
+    "darkMode": "Dark Mode",
+    "darkModeDesc": "Change system display colors to dark theme",
+    "languageSwitch": "Language Switch",
+    "languageSwitchDesc": "Change system display language",
+    "home": "Home"
+  },
+  "login": {
+    "title": "Welcome to X.Ryder",
+    "subtitle": "Intelligent management platform providing the best service experience. Secure, efficient, and convenient.",
+    "loginAccount": "Login to Account",
+    "welcomeBack": "Welcome back, please login to your account",
+    "username": "Username",
+    "password": "Password",
+    "usernamePlaceholder": "Please enter your username",
+    "passwordPlaceholder": "Please enter your password",
+    "loginButton": "Login",
+    "loggingIn": "Logging in...",
+    "thirdPartyLogin": "Login with third-party account",
+    "or": "OR",
+    "stability": "Stability",
+    "support": "Support",
+    "users": "Users",
+    "copyright": "© {{year}} X.Ryder. All rights reserved.",
+    "errors": {
+      "usernameRequired": "Please enter username",
+      "passwordRequired": "Please enter password",
+      "passwordMinLength": "Password must be at least 6 characters"
+    },
+    "notifications": {
+      "loginSuccess": "Login successful!",
+      "loginFailed": "Login failed!",
+      "usernameOrPasswordError": "Username or password error",
+      "unknownError": "Unknown error, please try again",
+      "networkError": "Network error, please check your connection",
+      "encryptionFailed": "Password encryption failed, please try again"
+    }
+  }
 }

@@ -1,9 +1,15 @@
-import { create } from "zustand";
+import { create } from 'zustand'
 
-const useErrorStore = create((set) => ({
-    error: null,
-    setError: (error) => set({ error }),
-    clearError: () => set({ error: null }),
-}));
+interface ErrorState {
+  error: string | null
+  setError: (error: string | null) => void
+  clearError: () => void
+}
 
-export default useErrorStore;
+const useErrorStore = create<ErrorState>((set) => ({
+  error: null,
+  setError: (error: string | null) => set({ error }),
+  clearError: () => set({ error: null }),
+}))
+
+export default useErrorStore

@@ -1,11 +1,12 @@
 import { KeyboardEvent, useCallback, useEffect, useState } from 'react'
 
-import { useNavigate } from 'react-router-dom'
-
-import { Eye, EyeOff } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ArrowRight, Eye, EyeOff, Lock, Sparkles, User } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import BoxReveal from '@/components/magicui/box-reveal'
+import { LanguageTextWrapper } from '@/components/LanguageAnimationWrapper'
+import { LanguageToggle } from '@/components/LanguageToggle'
 import DotPattern from '@/components/magicui/dot-pattern'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +15,8 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { encryptPassword, logoImg } from '@/utils'
+
+import { autoRedirectIfLoggedIn, handleLoginSuccess } from './axiosInstance'
 
 // 定义表单验证状态
 interface FormState {
@@ -27,8 +30,11 @@ interface FormState {
 }
 
 function Login() {
-  const navigate = useNavigate()
+  const { t } = useTranslation()
   const { login, isLoading, getPublicKey, publicKey } = useAuthStore()
+
+  // 添加初始化状态
+  const [isInitializing, setIsInitializing] = useState(true)
 
   const [formState, setFormState] = useState<FormState>({
     username: '',
@@ -37,9 +43,39 @@ function Login() {
     errors: {},
   })
 
-  // 获取公钥
+  // 检查登录状态并获取公钥的组合逻辑
   useEffect(() => {
-    getPublicKey()
+    const initializeLogin = async () => {
+      try {
+        // 先检查是否已登录，如果已登录会自动跳转
+        const didRedirect = await autoRedirectIfLoggedIn()
+
+        // 如果发生重定向，延迟一下再结束初始化，避免闪烁
+        if (didRedirect) {
+          // 给重定向一些时间，然后结束初始化状态
+          setTimeout(() => {
+            setIsInitializing(false)
+          }, 500)
+          return
+        }
+
+        // 如果没有重定向（即用户未登录），则获取公钥
+        await getPublicKey()
+      } catch (error) {
+        console.log('Login initialization error:', error)
+        // 即使检查失败，也要获取公钥以便用户登录
+        try {
+          await getPublicKey()
+        } catch (keyError) {
+          console.error('Failed to get public key:', keyError)
+        }
+      } finally {
+        // 初始化完成
+        setIsInitializing(false)
+      }
+    }
+
+    initializeLogin()
   }, [getPublicKey])
 
   // 验证表单
@@ -47,18 +83,18 @@ function Login() {
     const errors: FormState['errors'] = {}
 
     if (!formState.username.trim()) {
-      errors.username = '请输入账号'
+      errors.username = t('login.errors.usernameRequired')
     }
 
     if (!formState.password.trim()) {
-      errors.password = '请输入密码'
+      errors.password = t('login.errors.passwordRequired')
     } else if (formState.password.length < 6) {
-      errors.password = '密码至少需要6位'
+      errors.password = t('login.errors.passwordMinLength')
     }
 
     setFormState((prev) => ({ ...prev, errors }))
     return Object.keys(errors).length === 0
-  }, [formState.username, formState.password])
+  }, [formState.username, formState.password, t])
 
   // 处理登录
   const handleLogin = useCallback(async () => {
@@ -69,7 +105,9 @@ function Login() {
     try {
       const encryptedPassword = encryptPassword(formState.password, publicKey)
       if (!encryptedPassword) {
-        toast.error('密码加密失败，请重试')
+        toast.error(t('login.notifications.loginFailed'), {
+          description: t('login.notifications.encryptionFailed'),
+        })
         return
       }
 
@@ -77,23 +115,22 @@ function Login() {
       const response = await login(formState.username, encodedPassword)
 
       if (response.code === 401) {
-        toast.error('登录失败！', {
-          description: '用户名或密码错误',
+        toast.error(t('login.notifications.loginFailed'), {
+          description: t('login.notifications.usernameOrPasswordError'),
         })
       } else if (response.code === 200) {
-        toast.success('登录成功！')
-        localStorage.setItem('token', response.data.token)
-        localStorage.setItem('refreshToken', response.data.refreshToken)
-        navigate('/')
+        toast.success(t('login.notifications.loginSuccess'))
+        // 使用新的登录成功处理函数，自动处理重定向
+        handleLoginSuccess(response.data.token, response.data.refreshToken)
       } else {
-        toast.error('登录失败！', {
-          description: '未知错误，请重试',
+        toast.error(t('login.notifications.loginFailed'), {
+          description: t('login.notifications.unknownError'),
         })
       }
     } catch (error) {
       console.error('Login error:', error)
-      toast.error('登录失败！', {
-        description: '网络错误，请检查网络连接',
+      toast.error(t('login.notifications.loginFailed'), {
+        description: t('login.notifications.networkError'),
       })
     }
   }, [
@@ -101,8 +138,8 @@ function Login() {
     formState.password,
     publicKey,
     login,
-    navigate,
     validateForm,
+    t,
   ])
 
   // 切换密码显示状态
@@ -135,160 +172,246 @@ function Login() {
 
   const currentYear = new Date().getFullYear()
 
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:ml-8">
-        {/* 左侧介绍区域 */}
-        <div className="hidden lg:flex justify-center items-center h-[calc(100vh_-_theme(spacing.8))]">
-          <DotPattern
-            width={18}
-            height={18}
-            cx={2}
-            cy={2}
-            cr={1}
-            className={cn(
-              '[mask-image:radial-gradient(900px_circle_at_left,white,transparent)]'
-            )}
-          />
-          <div className="relative z-10 max-w-lg">
-            <BoxReveal boxColor={'#0EA5E9'} duration={0.5}>
-              <h1 className="text-4xl lg:text-5xl font-bold mb-4">
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  X.Ryder
-                </span>
-              </h1>
-            </BoxReveal>
+  // 动画变体
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      },
+    },
+  }
 
-            <BoxReveal boxColor={'#0EA5E9'} duration={0.5}>
-              <h2 className="text-xl font-semibold text-muted-foreground mb-6">
-                为{' '}
-                <span className="text-[#0EA5E9]">
-                  全栈开发工程师、前端及后端工程师
-                </span>{' '}
-                准备，开箱即用！
-              </h2>
-            </BoxReveal>
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.5,
+        ease: 'easeOut',
+      },
+    },
+  }
 
-            <BoxReveal boxColor={'#0EA5E9'} duration={0.5}>
-              <div className="space-y-4 text-sm text-muted-foreground">
-                <p>
-                  • 前端基于
-                  <span className="font-semibold text-[#0EA5E9]"> React</span>、
-                  <span className="font-semibold text-[#0EA5E9]"> Vite</span>、
-                  <span className="font-semibold text-[#0EA5E9]">
-                    {' '}
-                    TypeScript
-                  </span>
-                  、
-                  <span className="font-semibold text-[#0EA5E9]">
-                    {' '}
-                    Tailwind CSS{' '}
-                  </span>
-                  等现代技术栈构建
-                </p>
-                <p>
-                  • 后端基于
-                  <span className="font-semibold text-[#0EA5E9]"> Java 21</span>
-                  、
-                  <span className="font-semibold text-[#0EA5E9]">
-                    {' '}
-                    Spring Boot
-                  </span>
-                  、
-                  <span className="font-semibold text-[#0EA5E9]"> MySQL </span>
-                  开发的企业级后台程序
-                </p>
-                <p>
-                  • 可作为
-                  <span className="font-semibold text-[#0EA5E9]">
-                    {' '}
-                    业务系统{' '}
-                  </span>
-                  和
-                  <span className="font-semibold text-[#0EA5E9]">
-                    {' '}
-                    后台管理系统{' '}
-                  </span>
-                  的开发框架
-                </p>
-                <p>
-                  • 集成
-                  <span className="font-semibold text-[#0EA5E9]"> AI </span>
-                  能力，提供智能化解决方案
-                </p>
-              </div>
-            </BoxReveal>
-          </div>
+  const logoVariants = {
+    hidden: { scale: 0, rotate: -180 },
+    visible: {
+      scale: 1,
+      rotate: 0,
+      transition: {
+        type: 'spring',
+        stiffness: 260,
+        damping: 20,
+        delay: 0.1,
+      },
+    },
+  }
+
+  // 如果正在初始化，显示加载界面
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-purple-50/50 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">
+            {t('login.initializing', 'Initializing...')}
+          </p>
         </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-purple-50/50 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20 relative">
+      {/* 语言切换按钮 */}
+      <div className="absolute top-4 right-4 z-50">
+        <LanguageToggle variant="icon" size="md" showLabel />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 min-h-screen">
+        {/* 背景装饰 */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-indigo-500/5" />
+        <div className="absolute top-1/3 left-1/3 w-64 h-64 bg-gradient-to-r from-blue-400/10 to-purple-400/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/3 right-1/3 w-48 h-48 bg-gradient-to-r from-purple-400/10 to-indigo-400/10 rounded-full blur-2xl" />
+        {/* DotPattern背景 */}
+        <DotPattern
+          width={25}
+          height={25}
+          cx={1}
+          cy={1}
+          cr={1}
+          className={cn(
+            'absolute inset-0 z-0 opacity-30 fill-neutral-600/40 dark:fill-neutral-400/30',
+            '[mask-image:radial-gradient(1000px_circle_at_center,white,transparent)]'
+          )}
+        />
+        {/* 左侧介绍区域 */}
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+          className="hidden lg:flex flex-col justify-center items-center p-12 relative overflow-hidden"
+        >
+          <motion.div
+            variants={itemVariants}
+            className="relative z-10 text-center max-w-md"
+          >
+            <motion.div variants={itemVariants} className="mb-8">
+              <Sparkles className="w-16 h-16 mx-auto mb-4 text-blue-500" />
+            </motion.div>
+            <motion.div variants={itemVariants}>
+              <LanguageTextWrapper>
+                <h1 className="text-4xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                  {t('login.title')}
+                </h1>
+              </LanguageTextWrapper>
+            </motion.div>
+            <motion.div variants={itemVariants}>
+              <LanguageTextWrapper delay={0.1}>
+                <p className="text-lg text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
+                  {t('login.subtitle')}
+                </p>
+              </LanguageTextWrapper>
+            </motion.div>
+            <motion.div
+              variants={itemVariants}
+              className="grid grid-cols-3 gap-4"
+            >
+              <div className="text-center p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+                <div className="text-2xl font-bold text-blue-600">99.9%</div>
+                <LanguageTextWrapper delay={0.2}>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {t('login.stability')}
+                  </div>
+                </LanguageTextWrapper>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+                <div className="text-2xl font-bold text-purple-600">24/7</div>
+                <LanguageTextWrapper delay={0.3}>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {t('login.support')}
+                  </div>
+                </LanguageTextWrapper>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm">
+                <div className="text-2xl font-bold text-indigo-600">1000+</div>
+                <LanguageTextWrapper delay={0.4}>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {t('login.users')}
+                  </div>
+                </LanguageTextWrapper>
+              </div>
+            </motion.div>
+          </motion.div>
+        </motion.div>
 
         {/* 右侧登录区域 */}
-        <div className="flex justify-center items-center min-h-screen lg:h-[calc(100vh_-_theme(spacing.8))] p-4">
-          <div className="relative w-full max-w-sm">
-            <Card className="w-full shadow-2xl border-0 bg-card/50 backdrop-blur-sm">
-              <CardHeader className="text-center space-y-4 pt-8">
-                <div className="flex justify-center">
-                  <img
-                    src={logoImg}
-                    alt="X.Ryder Logo"
-                    className="w-16 h-16 rounded-2xl shadow-lg"
-                  />
-                </div>
-                <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-                  X.Ryder
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  欢迎回来，请登录您的账户
-                </p>
+        <div className="relative flex justify-center items-center min-h-screen p-4">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={containerVariants}
+            className="relative w-full max-w-md z-10"
+          >
+            <Card className="w-full shadow-xl border border-white/20 dark:border-gray-800/50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl">
+              <CardHeader className="text-center space-y-6 pt-8 pb-2">
+                <motion.div
+                  variants={logoVariants}
+                  className="flex justify-center"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl blur-md opacity-50" />
+                    <img
+                      src={logoImg}
+                      alt="X.Ryder Logo"
+                      className="relative w-16 h-16 rounded-2xl shadow-lg"
+                    />
+                  </div>
+                </motion.div>
+
+                <motion.div variants={itemVariants}>
+                  <LanguageTextWrapper>
+                    <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                      {t('login.loginAccount')}
+                    </CardTitle>
+                  </LanguageTextWrapper>
+                  <LanguageTextWrapper delay={0.1}>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                      {t('login.welcomeBack')}
+                    </p>
+                  </LanguageTextWrapper>
+                </motion.div>
               </CardHeader>
 
-              <CardContent className="space-y-6 pb-8">
-                <div className="space-y-4">
+              <CardContent className="space-y-6 pb-8 px-8">
+                <motion.div variants={containerVariants} className="space-y-5">
                   {/* 账号输入 */}
-                  <div className="space-y-2">
-                    <Label htmlFor="username" className="text-sm font-medium">
-                      账号
-                    </Label>
-                    <Input
-                      id="username"
-                      type="text"
-                      placeholder="请输入您的账号"
-                      value={formState.username}
-                      onChange={(e) =>
-                        updateFormField('username', e.target.value)
-                      }
-                      className={cn(
-                        'h-11 transition-colors',
-                        formState.errors.username &&
-                          'border-destructive focus-visible:ring-destructive'
-                      )}
-                      disabled={isLoading}
-                    />
+                  <motion.div variants={itemVariants} className="space-y-2">
+                    <LanguageTextWrapper>
+                      <Label
+                        htmlFor="username"
+                        className="text-sm font-medium flex items-center gap-2"
+                      >
+                        <User className="w-4 h-4 text-blue-500" />
+                        {t('login.username')}
+                      </Label>
+                    </LanguageTextWrapper>
+                    <div className="relative">
+                      <Input
+                        id="username"
+                        type="text"
+                        placeholder={t('login.usernamePlaceholder')}
+                        value={formState.username}
+                        onChange={(e) =>
+                          updateFormField('username', e.target.value)
+                        }
+                        className={cn(
+                          'h-12 pl-4 pr-4 bg-gray-50/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-200',
+                          formState.errors.username &&
+                            'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                        )}
+                        disabled={isLoading}
+                      />
+                    </div>
                     {formState.errors.username && (
-                      <p className="text-xs text-destructive">
+                      <motion.p
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xs text-red-500 flex items-center gap-1"
+                      >
                         {formState.errors.username}
-                      </p>
+                      </motion.p>
                     )}
-                  </div>
+                  </motion.div>
 
                   {/* 密码输入 */}
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-medium">
-                      密码
-                    </Label>
+                  <motion.div variants={itemVariants} className="space-y-2">
+                    <LanguageTextWrapper>
+                      <Label
+                        htmlFor="password"
+                        className="text-sm font-medium flex items-center gap-2"
+                      >
+                        <Lock className="w-4 h-4 text-purple-500" />
+                        {t('login.password')}
+                      </Label>
+                    </LanguageTextWrapper>
                     <div className="relative">
                       <Input
                         id="password"
                         type={formState.showPassword ? 'text' : 'password'}
-                        placeholder="请输入您的密码"
+                        placeholder={t('login.passwordPlaceholder')}
                         value={formState.password}
                         onChange={(e) =>
                           updateFormField('password', e.target.value)
                         }
                         onKeyDown={handleKeyDown}
                         className={cn(
-                          'h-11 pr-10 transition-colors',
+                          'h-12 pl-4 pr-12 bg-gray-50/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 focus:border-purple-400 focus:ring-purple-400/20 transition-all duration-200',
                           formState.errors.password &&
-                            'border-destructive focus-visible:ring-destructive'
+                            'border-red-400 focus:border-red-400 focus:ring-red-400/20'
                         )}
                         disabled={isLoading}
                       />
@@ -296,65 +419,88 @@ function Login() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        className="absolute right-1 top-1 h-10 w-10 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
                         onClick={togglePasswordVisibility}
                         disabled={isLoading}
                       >
                         {formState.showPassword ? (
-                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          <EyeOff className="h-4 w-4 text-gray-500" />
                         ) : (
-                          <Eye className="h-4 w-4 text-muted-foreground" />
+                          <Eye className="h-4 w-4 text-gray-500" />
                         )}
                       </Button>
                     </div>
                     {formState.errors.password && (
-                      <p className="text-xs text-destructive">
+                      <motion.p
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xs text-red-500 flex items-center gap-1"
+                      >
                         {formState.errors.password}
-                      </p>
+                      </motion.p>
                     )}
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
 
                 {/* 登录按钮 */}
-                <div className="space-y-3">
+                <motion.div variants={itemVariants} className="space-y-4 pt-2">
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-200"
+                    className="w-full h-12 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 hover:from-blue-600 hover:via-purple-600 hover:to-indigo-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] disabled:scale-100 disabled:opacity-50"
                     onClick={handleLogin}
                     disabled={isLoading || !publicKey}
                   >
-                    {isLoading ? '正在登录...' : '登录'}
+                    <LanguageTextWrapper className="flex items-center justify-center gap-2">
+                      {isLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          {t('login.loggingIn')}
+                        </>
+                      ) : (
+                        <>
+                          {t('login.loginButton')}
+                          <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                        </>
+                      )}
+                    </LanguageTextWrapper>
                   </Button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-gray-200 dark:border-gray-700" />
+                    </div>
+                    <LanguageTextWrapper className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white dark:bg-gray-900 px-2 text-gray-500">
+                        {t('login.or')}
+                      </span>
+                    </LanguageTextWrapper>
+                  </div>
 
                   <Button
                     variant="outline"
-                    className="w-full h-11 transition-colors hover:bg-muted"
+                    className="w-full h-12 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 transform hover:scale-[1.02] disabled:scale-100"
                     disabled={isLoading}
                   >
-                    使用第三方账号登录
+                    <LanguageTextWrapper className="flex items-center justify-center gap-2">
+                      <Sparkles className="w-4 h-4 text-gray-500" />
+                      {t('login.thirdPartyLogin')}
+                    </LanguageTextWrapper>
                   </Button>
-                </div>
+                </motion.div>
               </CardContent>
             </Card>
 
-            <DotPattern
-              width={16}
-              height={16}
-              cx={12}
-              cy={12}
-              cr={1}
-              className={cn(
-                'absolute inset-0 -z-10',
-                '[mask-image:radial-gradient(900px_circle_at_right,white,transparent)]'
-              )}
-            />
-          </div>
+            {/* 底部装饰 */}
+            <motion.div variants={itemVariants} className="mt-8 text-center">
+              <LanguageTextWrapper>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('login.copyright', { year: currentYear })}
+                </p>
+              </LanguageTextWrapper>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
-
-      <footer className="text-center text-muted-foreground text-xs py-4">
-        <p>&copy; {currentYear} X.Ryder. All rights reserved.</p>
-      </footer>
     </div>
   )
 }

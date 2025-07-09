@@ -19,5 +19,45 @@
   "members": "成员",
   "bill": "账单",
   "docs": "文档",
-  "system": "系统"
+  "system": "系统",
+  "personal": {
+    "title": "个性化设置",
+    "description": "设置系统的显示模式、显示语言等等",
+    "darkMode": "暗黑模式",
+    "darkModeDesc": "更改系统显示的颜色为深色",
+    "languageSwitch": "中英文切换",
+    "languageSwitchDesc": "更改系统显示的语言",
+    "home": "首页"
+  },
+  "login": {
+    "title": "欢迎来到 X.Ryder",
+    "subtitle": "智能化管理平台，为您提供最优质的服务体验。安全、高效、便捷。",
+    "loginAccount": "登录账户",
+    "welcomeBack": "欢迎回来，请登录您的账户",
+    "username": "账号",
+    "password": "密码",
+    "usernamePlaceholder": "请输入您的账号",
+    "passwordPlaceholder": "请输入您的密码",
+    "loginButton": "登录",
+    "loggingIn": "正在登录...",
+    "thirdPartyLogin": "使用第三方账号登录",
+    "or": "或",
+    "stability": "稳定性",
+    "support": "支持",
+    "users": "用户",
+    "copyright": "© {{year}} X.Ryder. All rights reserved.",
+    "errors": {
+      "usernameRequired": "请输入账号",
+      "passwordRequired": "请输入密码",
+      "passwordMinLength": "密码至少需要6位"
+    },
+    "notifications": {
+      "loginSuccess": "登录成功！",
+      "loginFailed": "登录失败！",
+      "usernameOrPasswordError": "用户名或密码错误",
+      "unknownError": "未知错误，请重试",
+      "networkError": "网络错误，请检查网络连接",
+      "encryptionFailed": "密码加密失败，请重试"
+    }
+  }
 }
