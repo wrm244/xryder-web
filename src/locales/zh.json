@@ -59,5 +59,19 @@
       "networkError": "网络错误，请检查网络连接",
       "encryptionFailed": "密码加密失败，请重试"
     }
+  },
+  "nav": {
+    "user": {
+      "accountSettings": "账户设置",
+      "personalSettings": "个性化设置",
+      "techSupport": "技术支持",
+      "about": "关 于",
+      "logout": "登 出",
+      "aboutTitle": "X.Ryder",
+      "aboutDescription": "一个基于vite、react、tailwindcss和shadcn的中后台ui快速开发模板。",
+      "supportTitle": "技术支持",
+      "supportDescription": "发送问题邮件至cutesimba@163.com,备注xryder.cn",
+      "copyright": "© {{year}} X.Ryder."
+    }
   }
 }

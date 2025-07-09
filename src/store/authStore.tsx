@@ -76,8 +76,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
   logout: () => {
-    set({ token: '', refreshToken: '', name: '' })
+    // 立即清除状态，避免UI卡顿
+    set({ token: '', refreshToken: '', name: '', permissions: [] })
     clearApiTokens()
-    window.location.href = '/login'
+
+    // 使用 requestIdleCallback 或 setTimeout 在空闲时执行页面跳转
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => {
+        window.location.replace('/login')
+      })
+    } else {
+      setTimeout(() => {
+        window.location.replace('/login')
+      }, 0)
+    }
   },
 }))

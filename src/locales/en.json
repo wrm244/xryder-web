@@ -59,5 +59,19 @@
       "networkError": "Network error, please check your connection",
       "encryptionFailed": "Password encryption failed, please try again"
     }
+  },
+  "nav": {
+    "user": {
+      "accountSettings": "Account Settings",
+      "personalSettings": "Personal Settings",
+      "techSupport": "Tech Support",
+      "about": "About",
+      "logout": "Logout",
+      "aboutTitle": "X.Ryder",
+      "aboutDescription": "A rapid development template for admin UI based on vite, react, tailwindcss and shadcn.",
+      "supportTitle": "Tech Support",
+      "supportDescription": "Send your questions to cutesimba@163.com, mention xryder.cn",
+      "copyright": "© {{year}} X.Ryder."
+    }
   }
 }
