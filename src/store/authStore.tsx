@@ -2,7 +2,6 @@ import { create } from 'zustand'
 
 import { API_URLS } from '@/constants/apiUrls'
 // 引入 Axios 实例
-import { parseQuery } from '@/utils'
 import { extractErrorMessage } from '@/utils/errorHandler'
 
 import api, { clearApiTokens } from '../axiosInstance'
@@ -44,9 +43,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (username: string, password: string) => {
     set({ isLoading: true, error: null })
     try {
-      const data = (await api.post(
-        API_URLS.AUTH.LOGIN + '?' + parseQuery({ username, password })
-      )) as LoginResponse
+      const data = (await api.post(API_URLS.AUTH.LOGIN, {
+        username,
+        password,
+      })) as LoginResponse
       if (data.code === 200) {
         set({
           name: data.data.nickname,
