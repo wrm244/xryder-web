@@ -92,7 +92,7 @@ const STATUS_CODES = {
 } as const
 
 // 配置常量
-const CONFIG = {
+export const CONFIG = {
   BASE_URL: '/api',
   TOKEN_KEY: 'token',
   REFRESH_TOKEN_KEY: 'refreshToken',
@@ -463,4 +463,41 @@ export const getRedirectUrl = (): string | null => {
 
 export const clearRedirectUrlParam = (): void => {
   clearRedirectParam()
+}
+
+export const getApiToken = (): string | null => {
+  if (!cachedToken) {
+    cachedToken = localStorage.getItem(CONFIG.TOKEN_KEY)
+  }
+  return cachedToken
+}
+
+/**
+ * 手动刷新 token
+ * @returns 返回一个 Promise，成功时返回新的 token，失败时抛出异常
+ */
+export const manualRefreshToken = async (): Promise<string> => {
+  const refreshToken = localStorage.getItem(CONFIG.REFRESH_TOKEN_KEY)
+  if (!refreshToken) {
+    return Promise.reject('无刷新令牌')
+  }
+
+  try {
+    // 使用原始 axios 实例而非 api 实例，避免触发拦截器
+    const response = await axios.post(CONFIG.REFRESH_TOKEN_ENDPOINT, {
+      refreshToken,
+    })
+
+    if (response.data.code === STATUS_CODES.SUCCESS) {
+      const newToken = response.data.data
+      // 更新本地存储
+      updateTokenCache(newToken)
+      return newToken
+    } else {
+      return Promise.reject(response.data.msg || '刷新失败')
+    }
+  } catch (error) {
+    console.error('手动刷新 token 失败:', error)
+    return Promise.reject('刷新令牌请求失败')
+  }
 }

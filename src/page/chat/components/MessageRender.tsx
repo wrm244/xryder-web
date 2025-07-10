@@ -1,197 +1,97 @@
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm"; // 引入remark-gfm插件
-import { TooltipContent } from "@/components/ui/tooltip";
-import { useEffect, useRef } from "react";
-import { fileImg } from "@/utils";
-import CodeCopyButton from "@/components/common/CodeCopyButton";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { darcula } from "react-syntax-highlighter/dist/esm/styles/prism";
-import {
-  Tooltip,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@radix-ui/react-tooltip";
-
 /**
+ * 消息渲染组件
  * Created by: joetao
  * Created on: 2025/1/13
+ * Updated on: 2025/7/10
  * Project: my-app
- * Description: This is a rapid development template for middle and backend UI based on vite, react, tailwindcss and shadcn.
+ * Description: 这是一个聊天界面的消息渲染组件，支持 Markdown 格式、代码块和文件展示
  */
+import { useEffect, useRef } from 'react'
 
-interface Message {
-  sender: string;
-  avatar?: React.ReactNode;
-  text?: string;
-  docs?: string[];
-  images?: string[];
-}
+import { injectStyles } from '../styles/messageAnimations'
+import { type MessageRenderProps } from '../utils/messageUtils'
+import MessageAvatar from './renderers/MessageAvatar'
+import MessageBubble from './renderers/MessageBubble'
+import MessageFooter from './renderers/MessageFooter'
 
-interface MessageRenderProps {
-  messages: Message[];
-  botState: string;
-}
+// 注入样式到页面
+injectStyles()
 
 const MessageRender: React.FC<MessageRenderProps> = ({
   messages,
   botState,
 }) => {
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    scrollToBottom();
-  }, [messages]);
-
-  const renderers = {
-    ul: ({ children }) => <ul className="list-disc list-inside">{children}</ul>,
-    ol: ({ children, ...props }) => {
-      const start = props.start || 1; // 如果 Markdown 中未指定，默认为 1
-      return (
-        <ol start={start} className="list-decimal list-inside">
-          {children}
-        </ol>
-      );
-    },
-    li: ({ children }) => <li className="my-2">{children}</li>,
-    a: ({ href, children }) => {
-      const isExternal = href?.startsWith("http");
-      return (
-        <a
-          href={href}
-          target={isExternal ? "_blank" : "_self"}
-          rel={isExternal ? "noopener noreferrer" : undefined}
-          className="text-blue-500 underline hover:text-blue-700"
-        >
-          {isExternal && <span className="ml-1 text-sm">🔗</span>}
-          {children}
-        </a>
-      );
-    },
-    code: ({ node, inline, className, children, ...props }) => {
-      const match = /language-(\w+)/.exec(className || "");
-      return !inline && match ? (
-        <div className="relative rounded-md ">
-          <SyntaxHighlighter
-            style={darcula}
-            language={match[1]}
-            PreTag="div"
-            children={String(children).replace(/\n$/, "")}
-            {...props}
-          />
-          <div className={"absolute top-2 right-2"}>
-            <CodeCopyButton text={String(children).replace(/\n$/, "")} />
-          </div>
-        </div>
-      ) : (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
-    },
-  };
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    scrollToBottom()
+  }, [messages])
 
   return (
-    <div className="w-full rounded-xl p-16 pb-16 flex flex-grow items-center justify-center">
-      <div className={"w-full md:w-[900px] flex flex-col"}>
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex items-start select-text ${
-              msg.sender === "user"
-                ? "my-2 py-4 rounded-xl self-end"
-                : "pr-4 self-start"
-            }`}
-          >
-            {msg.sender === "bot" && msg.avatar}
-            {msg.sender === "bot" &&
-              messages.length == index + 1 &&
-              botState == "thinking" && (
-                <div className={"mt-3"}>
-                  <span className="relative flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-200 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-lime-400"></span>
-                  </span>
+    <div className="flex-1 overflow-y-auto bg-gradient-to-br from-background via-background to-muted/20 relative">
+      {/* 添加背景装饰 */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 via-transparent to-indigo-50/20 dark:from-blue-950/10 dark:via-transparent dark:to-indigo-950/10 pointer-events-none" />
+      <div className="relative max-w-4xl mx-auto px-4 py-6">
+        {messages.map((msg, index) => {
+          const isLastMessage = index === messages.length - 1
+          const isBot = msg.sender === 'bot'
+          const isUser = msg.sender === 'user'
+
+          return (
+            <div
+              key={index}
+              className={`group mb-4 transition-all duration-500 ease-out ${
+                isUser ? 'flex justify-end' : 'flex justify-start'
+              }`}
+              style={{
+                animation: isUser
+                  ? `slideInRight 0.6s ease-out ${index * 0.1}s both`
+                  : `slideInLeft 0.6s ease-out ${index * 0.1}s both`,
+                transform: 'translateX(0)',
+              }}
+            >
+              <div
+                className={`flex max-w-[80%] ${
+                  isUser ? 'flex-row-reverse' : 'flex-row'
+                } gap-2.5`}
+              >
+                {/* Avatar */}
+                <MessageAvatar isBot={isBot} />
+
+                {/* Message Content */}
+                <div
+                  className={`flex-1 ${
+                    isUser ? 'items-end' : 'items-start'
+                  } flex flex-col`}
+                >
+                  {/* Message Bubble */}
+                  <MessageBubble
+                    msg={msg}
+                    isUser={isUser}
+                    isBot={isBot}
+                    isLastMessage={isLastMessage}
+                  />
+
+                  {/* Timestamp and status */}
+                  <MessageFooter
+                    isUser={isUser}
+                    isLastMessage={isLastMessage}
+                    isBot={isBot}
+                    botState={botState}
+                  />
                 </div>
-              )}
-            <div>
-              {msg.sender === "user" ? (
-                <div>
-                  {msg.docs
-                    .filter(
-                      (f) =>
-                        !["png", "jpeg", "jpg"].includes(f.split(".").pop())
-                    )
-                    .map((f: string, index) => (
-                      <div
-                        className="relative p-2 mb-2 mr-2 bg-foreground/25 rounded-xl"
-                        key={index}
-                      >
-                        <div className="flex  gap-2">
-                          <div className="flex-none relative">
-                            <img
-                              src={fileImg}
-                              alt="file"
-                              className={`w-12 h-12 rounded-xl`}
-                            />
-                          </div>
-                          <div>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="w-64 overflow-hidden whitespace-nowrap text-ellipsis font-semibold">
-                                    {f}
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>{f}</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <div className="text-token-text-tertiary">
-                              {f.split(".").pop()}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  {msg.images.map((image, index) => (
-                    <img
-                      key={index}
-                      src={image}
-                      alt="Uploaded Preview"
-                      style={{ maxWidth: "360px", height: "auto" }}
-                      className="mb-1"
-                    />
-                  ))}
-                  <div className={"flex relative justify-end items-center"}>
-                    <div className="whitespace-pre-wrap bg-card p-2 px-4 rounded-3xl border">
-                      {msg.text}
-                    </div>
-                    {msg.avatar}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  {msg.text && (
-                    <ReactMarkdown
-                      className="markdown-body"
-                      remarkPlugins={[remarkGfm]} // 使用remark-gfm插件
-                      components={renderers}
-                    >
-                      {msg.text}
-                    </ReactMarkdown>
-                  )}
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
+
         <div ref={messagesEndRef} />
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default MessageRender;
+export default MessageRender

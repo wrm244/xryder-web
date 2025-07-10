@@ -6,10 +6,10 @@
  * Project: xryder
  * Description: This is a rapid development template for middle and backend UI based on vite, react, tailwindcss and shadcn.
  */
-import { Helmet } from "react-helmet-async";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { useState } from 'react'
+
+import { Helmet } from 'react-helmet-async'
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -17,19 +17,30 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import MessageRender from "./components/MessageRender";
-import MessageSender from "./components/MessageSender";
+} from '@/components/ui/breadcrumb'
+import { Separator } from '@/components/ui/separator'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+
+import MessageRender from './components/MessageRender'
+import MessageSender from './components/MessageSender'
+
+interface Message {
+  text: string
+  sender: string
+  docs: string[]
+  images: string[]
+  avatar: React.ReactElement
+}
 
 export function AiChat() {
-  const [messages, setMessages] = useState<string[]>([]);
-  const [botState, setBotState] = useState<string>("idle"); // 状态：idle, ready, typing, thinking
+  const [messages, setMessages] = useState<Message[]>([])
+  const [botState, setBotState] = useState<string>('idle') // 状态：idle, ready, typing, thinking
   const messageSenderProps = {
     messages,
     botState,
     setMessages,
     setBotState,
-  };
+  }
 
   return (
     <div>
@@ -57,12 +68,10 @@ export function AiChat() {
           </Breadcrumb>
         </div>
       </header>
-      <div className="min-h-[calc(100vh-140px)] absolute top-0 left-0 right-0 bottom-0 overflow-y-auto">
-        <div className="flex flex-col h-full">
-          <MessageRender messages={messages} botState={botState} />
-          <MessageSender {...messageSenderProps} />
-        </div>
+      <div className="flex flex-col h-[calc(100vh-64px)]">
+        <MessageRender messages={messages} botState={botState} />
+        <MessageSender {...messageSenderProps} />
       </div>
     </div>
-  );
+  )
 }
